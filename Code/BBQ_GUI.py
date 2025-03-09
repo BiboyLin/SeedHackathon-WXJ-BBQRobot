@@ -47,8 +47,8 @@ class BBQAnimationWidget(QLabel):
         # 加载不同状态的动画
         self.animations = {}
         
-        # 动态扫描assets目录加载所有动画文件
-        self.load_animations_from_directory("assets")
+        # 动态扫描GUIassets目录加载所有动画文件
+        self.load_animations_from_directory("Code/GUIassets")
         
         # 添加动画键名映射，解决文件名与代码中使用的键名不匹配问题
         self.animation_key_map = {
@@ -63,11 +63,10 @@ class BBQAnimationWidget(QLabel):
         if not self.animations:
             print("警告：未找到任何动画文件，使用默认映射")
             animation_files = {
-                "idle": "assets/bbq_idle.gif",
-                "put_on": "assets/bbq_put_on.gif",
-                "turn_over": "assets/bbq_turn_over.gif",
-                "take_off": "assets/bbq_take_off.gif",
-                "season": "assets/bbq_season.gif"
+                "idle": "Code/GUIassets/bbq_idle.gif",
+                "put_on": "Code/GUIassets/bbq_put_on.gif",
+                "turn_over": "Code/GUIassets/bbq_turn_over.gif",
+                "take_off": "Code/GUIassets/bbq_take_off.gif"
             }
             
             for key, path in animation_files.items():
