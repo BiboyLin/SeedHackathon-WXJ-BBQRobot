@@ -124,49 +124,77 @@ class PerceptionLayer:
 class ExecutionLayer:
     """执行层：执行BBQ相关动作"""
     
-    def __init__(self, debug_mode=True):
+    def __init__(self, debug_mode=True, api_url="http://localhost:8888"):
         """初始化执行层，可设置debug模式"""
         self.debug_mode = debug_mode
+        self.api_url = api_url  # 新的推理执行层API地址
+    
+    def _execute_task(self, task_name, control_time_s=None):
+        """执行推理任务的通用方法"""
+        try:
+            # 准备请求数据
+            payload = {
+                "task_name": task_name,
+            }
+            
+            # 如果提供了控制时间，添加到请求中
+            if control_time_s is not None:
+                payload["control_time_s"] = control_time_s
+                
+            # 发送请求创建推理任务
+            response = requests.post(f"{self.api_url}/inference", json=payload)
+            
+            if response.status_code == 200:
+                print(f"成功启动{task_name}任务")
+                return True
+            else:
+                print(f"{task_name}任务启动失败: HTTP {response.status_code}, {response.text}")
+                return self.debug_mode
+        except Exception as e:
+            print(f"{task_name}任务执行失败: {e}")
+            return self.debug_mode
     
     def put_on_grill(self):
-        """上炉动作"""
-        try:
-            response = requests.post(f"{Excute_URL}/actions/put_on_grill")
-            return response.status_code == 200
-        except Exception as e:
-            print(f"上炉操作失败: {e}")
-            # 在debug模式下，即使失败也返回成功
-            return self.debug_mode
+        """上炉动作 - 使用pick策略"""
+        return self._execute_task("pick", 15.0)
     
     def turn_over(self):
-        """翻面动作"""
-        try:
-            response = requests.post(f"{Excute_URL}/actions/turn_over")
-            return response.status_code == 200
-        except Exception as e:
-            print(f"翻面操作失败: {e}")
-            # 在debug模式下，即使失败也返回成功
-            return self.debug_mode
+        """翻面动作 - 使用transfer策略"""
+        return self._execute_task("transfer", 20.0)
     
     def take_off_grill(self):
-        """下炉动作"""
-        try:
-            response = requests.post(f"{Excute_URL}/actions/take_off_grill")
-            return response.status_code == 200
-        except Exception as e:
-            print(f"下炉操作失败: {e}")
-            # 在debug模式下，即使失败也返回成功
-            return self.debug_mode
+        """下炉动作 - 使用place策略"""
+        return self._execute_task("place", 10.0)
     
     def season(self):
-        """撒料动作"""
+        """撒料动作 - 使用place策略但可能需要不同的控制时间"""
+        return self._execute_task("place", 8.0)
+    
+    def get_available_policies(self):
+        """获取可用的策略列表"""
         try:
-            response = requests.post(f"{Excute_URL}/actions/season")
-            return response.status_code == 200
+            response = requests.get(f"{self.api_url}/policies")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"获取策略列表失败: HTTP {response.status_code}, {response.text}")
+                return None
         except Exception as e:
-            print(f"撒料操作失败: {e}")
-            # 在debug模式下，即使失败也返回成功
-            return self.debug_mode
+            print(f"获取策略列表异常: {e}")
+            return None
+    
+    def get_task_status(self):
+        """获取当前任务状态"""
+        try:
+            response = requests.get(f"{self.api_url}/inference/status")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"获取任务状态失败: HTTP {response.status_code}, {response.text}")
+                return None
+        except Exception as e:
+            print(f"获取任务状态异常: {e}")
+            return None
 
 class DecisionLayer:
     """决策层：使用LLM Agent进行决策"""
@@ -337,10 +365,10 @@ class DecisionLayer:
 class BBQController:
     """BBQ控制系统：协调三层架构并处理超时状态"""
     
-    def __init__(self, api_key, debug_mode=True):
+    def __init__(self, api_key, debug_mode=True, execution_api_url="http://localhost:8888"):
         self.perception = PerceptionLayer()
         self.decision = DecisionLayer(api_key)
-        self.execution = ExecutionLayer(debug_mode)
+        self.execution = ExecutionLayer(debug_mode, execution_api_url)  # 更新执行层初始化
         self.debug_mode = debug_mode
         
         # 系统状态
@@ -363,6 +391,14 @@ class BBQController:
         if debug_mode:
             print("BBQ控制系统运行在DEBUG模式，操作失败将被忽略")
             print(f"初始烤制面设置为: {self.system_status['Current Grilling Side']}")
+        
+        # 初始化时检查可用策略
+        policies = self.execution.get_available_policies()
+        if policies:
+            print(f"可用策略: {policies.get('available_policies', [])}")
+            print(f"默认策略: {policies.get('default_policy', 'None')}")
+        else:
+            print("无法获取可用策略，使用默认配置")
     
     def execute_action(self, decision):
         """执行决策动作"""
